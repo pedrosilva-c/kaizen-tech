@@ -19,6 +19,8 @@ Compile com (instrucoes completas no final do arquivo):
 import os
 import sys
 import glob
+import stat
+import time
 import shutil
 import platform
 import subprocess
@@ -80,6 +82,90 @@ def get_size(path):
         return total
     except Exception:
         return 0
+
+
+def is_reparse_point(path):
+    """True para links simbólicos, junções e demais reparse points (não segue o link).
+
+    Usado pela limpeza, que roda elevada, para nunca descer por um link plantado
+    numa pasta gravável por outros usuários (ex.: C:\\Windows\\Temp) e acabar
+    apagando arquivos fora dela.
+    """
+    try:
+        st = os.lstat(path)
+    except OSError:
+        return True  # na dúvida, trata como inseguro e pula
+    attrs = getattr(st, "st_file_attributes", 0)
+    return bool(attrs & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)) or stat.S_ISLNK(st.st_mode)
+
+
+def _delete_tree_no_follow(path):
+    """Apaga `path` (arquivo ou pasta) sem atravessar reparse points.
+    Retorna (bytes_liberados, itens_ignorados)."""
+    if is_reparse_point(path):
+        return 0, 1
+    if not os.path.isdir(path):
+        size = os.path.getsize(path)
+        os.remove(path)
+        return size, 0
+    freed, skipped = 0, 0
+    for entry in os.listdir(path):
+        try:
+            f, s = _delete_tree_no_follow(os.path.join(path, entry))
+            freed += f
+            skipped += s
+        except OSError:
+            skipped += 1
+    try:
+        os.rmdir(path)  # só remove se ficou vazia
+    except OSError:
+        skipped += 1
+    return freed, skipped
+
+
+def clean_folder_safely(folder):
+    """Apaga o conteúdo de `folder` sem seguir links/junções.
+    Retorna (itens_removidos, itens_ignorados, bytes_liberados)."""
+    removed, failed, freed = 0, 0, 0
+    if not os.path.isdir(folder) or is_reparse_point(folder):
+        return removed, failed, freed
+    for item in os.listdir(folder):
+        path = os.path.join(folder, item)
+        try:
+            f, skipped = _delete_tree_no_follow(path)
+            freed += f
+            if skipped:
+                failed += 1
+            else:
+                removed += 1
+        except OSError:
+            failed += 1
+    return removed, failed, freed
+
+
+def _explorer_running():
+    try:
+        out = subprocess.run(["tasklist", "/fi", "imagename eq explorer.exe", "/nh"],
+                             capture_output=True, text=True, timeout=10).stdout
+        return "explorer.exe" in out.lower()
+    except Exception:
+        return False
+
+
+def restart_explorer_unelevated():
+    """Reinicia o Explorer sem herdar o token de administrador deste processo.
+
+    Encerrar o Explorer faz o Winlogon reiniciá-lo sozinho como shell do usuário
+    (integridade média). Só se isso não acontecer em alguns segundos o processo é
+    iniciado com 'runas /trustlevel:0x20000', que descarta os privilégios elevados.
+    O Explorer nunca é iniciado diretamente a partir do processo elevado.
+    """
+    subprocess.run(["taskkill", "/f", "/im", "explorer.exe"], check=False, capture_output=True)
+    for _ in range(10):
+        time.sleep(0.5)
+        if _explorer_running():
+            return
+    subprocess.run(["runas", "/trustlevel:0x20000", "explorer.exe"], check=False, capture_output=True)
 
 
 class MEMORYSTATUSEX(ctypes.Structure):
@@ -259,22 +345,13 @@ class KaizenApp:
     # ---------- limpeza ----------
 
     def _clean_folder(self, folder):
-        removed, failed, freed = 0, 0, 0
-        if not os.path.isdir(folder):
-            return removed, failed, freed
-        for item in os.listdir(folder):
-            path = os.path.join(folder, item)
-            try:
-                size = get_size(path)
-                if os.path.isfile(path) or os.path.islink(path):
-                    os.remove(path)
-                elif os.path.isdir(path):
-                    shutil.rmtree(path, ignore_errors=True)
-                removed += 1
-                freed += size
-            except Exception:
-                failed += 1
-        return removed, failed, freed
+        """Apaga o conteúdo de `folder` sem nunca seguir links ou junções.
+
+        Reparse points (links simbólicos, junções) são pulados e contados como
+        ignorados: o processo roda elevado e pastas como C:\\Windows\\Temp são
+        graváveis por outros usuários.
+        """
+        return clean_folder_safely(folder)
 
     def clean_temp(self):
         self.log("Limpando temporários do usuário (%TEMP%)...")
@@ -403,8 +480,7 @@ class KaizenApp:
         winreg.SetValueEx(key3, "ListviewAlphaSelect", 0, winreg.REG_DWORD, dword_val)
         winreg.CloseKey(key3)
 
-        subprocess.run(["taskkill", "/f", "/im", "explorer.exe"], check=False)
-        subprocess.Popen("explorer.exe")
+        restart_explorer_unelevated()
 
     def disable_visual_effects(self):
         self.log("Desativando animações e efeitos visuais inúteis...")

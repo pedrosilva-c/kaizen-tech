@@ -10,6 +10,7 @@ Ferramenta de manutenção rápida para técnicos de suporte. Reúne as verifica
 - As limpezas **apagam arquivos** em `%TEMP%`, `C:\Windows\Temp`, cache de navegadores e lixeira. O que foi apagado não volta.
 - Use **somente em computadores sob sua responsabilidade** ou com autorização do dono, e crie um ponto de restauração antes (há um botão para isso).
 - As ações destrutivas pedem confirmação, mas não há "desfazer". "Restaurar efeitos visuais padrão" reverte apenas os ajustes de efeitos visuais.
+- **Proteções do processo elevado:** a limpeza nunca segue links simbólicos ou junções (são pulados e contados como ignorados), e o Explorer é reiniciado **sem** herdar o token de administrador (o Winlogon o reinicia como shell do usuário; o *fallback* usa `runas /trustlevel:0x20000`).
 - Revise o código antes de executar. Ele está todo em um único arquivo: [`kaizen_tech.py`](kaizen_tech.py).
 
 ## Problema
@@ -73,7 +74,7 @@ py -m venv .venv
 python -m unittest discover -s tests -v
 ```
 
-**10 testes OK (11/11/2026).** Eles cobrem as funções auxiliares e as consultas de leitura ao sistema (memória, CPU, versão do Windows). **Nenhum teste executa ações de manutenção.** As ações foram validadas manualmente em máquina própria.
+**13 testes OK (11/11/2026).** Eles cobrem as funções auxiliares, as consultas de leitura ao sistema e a limpeza segura, incluindo um teste que cria uma **junção apontando para fora da pasta** e confirma que o destino não é apagado. **Nenhum teste executa as ações de manutenção sobre o sistema real.** As ações foram validadas manualmente em máquina própria.
 
 ## Limitações
 

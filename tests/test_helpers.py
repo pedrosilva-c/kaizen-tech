@@ -59,6 +59,38 @@ class ResourcePathTests(unittest.TestCase):
         self.assertEqual(kt.resource_path("kaizen.ico"), os.path.join(os.path.abspath("."), "kaizen.ico"))
 
 
+class SafeCleanupTests(unittest.TestCase):
+    def test_removes_files_and_nested_folders(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            Path(tmp, "a.tmp").write_bytes(b"x" * 10)
+            Path(tmp, "pasta", "sub").mkdir(parents=True)
+            Path(tmp, "pasta", "sub", "b.tmp").write_bytes(b"y" * 5)
+            removed, failed, freed = kt.clean_folder_safely(tmp)
+            self.assertEqual((removed, failed, freed), (2, 0, 15))
+            self.assertEqual(os.listdir(tmp), [])
+
+    @unittest.skipUnless(sys.platform == "win32", "Junções são do Windows")
+    def test_never_follows_a_junction_out_of_the_folder(self):
+        import subprocess
+        with tempfile.TemporaryDirectory() as alvo, tempfile.TemporaryDirectory() as limpeza:
+            protegido = Path(alvo, "importante.txt")
+            protegido.write_text("não pode sumir", encoding="utf-8")
+            juncao = Path(limpeza, "link-malicioso")
+            subprocess.run(["cmd", "/c", "mklink", "/J", str(juncao), alvo], check=True, capture_output=True)
+            Path(limpeza, "lixo.tmp").write_bytes(b"z")
+
+            removed, failed, _ = kt.clean_folder_safely(limpeza)
+
+            self.assertTrue(protegido.exists(), "a limpeza atravessou a junção")
+            self.assertEqual(removed, 1)
+            self.assertEqual(failed, 1)
+            self.assertTrue(kt.is_reparse_point(str(juncao)))
+            os.rmdir(juncao)  # remove só a junção, não o destino
+
+    def test_missing_folder_is_noop(self):
+        self.assertEqual(kt.clean_folder_safely(os.path.join(tempfile.gettempdir(), "kaizen-nao-existe-456")), (0, 0, 0))
+
+
 class SystemInfoTests(unittest.TestCase):
     @unittest.skipUnless(sys.platform == "win32", "Somente Windows")
     def test_memory_info_is_consistent(self):
