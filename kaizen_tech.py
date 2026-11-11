@@ -99,40 +99,63 @@ def is_reparse_point(path):
     return bool(attrs & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)) or stat.S_ISLNK(st.st_mode)
 
 
-def _delete_tree_no_follow(path):
+def _inside(root_real, path):
+    """True se o caminho REAL de `path` continua dentro de `root_real`.
+    Conferido imediatamente antes de cada exclusão, para estreitar a janela
+    de corrida em que uma pasta poderia ser trocada por um link/junção."""
+    try:
+        real = os.path.realpath(path)
+    except OSError:
+        return False
+    return os.path.normcase(real).startswith(os.path.normcase(root_real) + os.sep)
+
+
+def _delete_tree_no_follow(path, root_real, recurse=True):
     """Apaga `path` (arquivo ou pasta) sem atravessar reparse points.
     Retorna (bytes_liberados, itens_ignorados)."""
-    if is_reparse_point(path):
+    if is_reparse_point(path) or not _inside(root_real, path):
         return 0, 1
     if not os.path.isdir(path):
         size = os.path.getsize(path)
+        if is_reparse_point(path) or not _inside(root_real, path):
+            return 0, 1
         os.remove(path)
         return size, 0
+    if not recurse:
+        return 0, 1
     freed, skipped = 0, 0
     for entry in os.listdir(path):
         try:
-            f, s = _delete_tree_no_follow(os.path.join(path, entry))
+            f, s = _delete_tree_no_follow(os.path.join(path, entry), root_real, recurse)
             freed += f
             skipped += s
         except OSError:
             skipped += 1
     try:
-        os.rmdir(path)  # só remove se ficou vazia
+        if not is_reparse_point(path) and _inside(root_real, path):
+            os.rmdir(path)  # só remove se ficou vazia
+        else:
+            skipped += 1
     except OSError:
         skipped += 1
     return freed, skipped
 
 
-def clean_folder_safely(folder):
+def clean_folder_safely(folder, recurse=True):
     """Apaga o conteúdo de `folder` sem seguir links/junções.
+
+    recurse=False apaga só os arquivos do primeiro nível e não entra em
+    subpastas: usado em pastas graváveis por qualquer usuário (C:\\Windows\\Temp),
+    onde um processo elevado não deve descer por árvores de terceiros.
     Retorna (itens_removidos, itens_ignorados, bytes_liberados)."""
     removed, failed, freed = 0, 0, 0
     if not os.path.isdir(folder) or is_reparse_point(folder):
         return removed, failed, freed
+    root_real = os.path.realpath(folder)
     for item in os.listdir(folder):
         path = os.path.join(folder, item)
         try:
-            f, skipped = _delete_tree_no_follow(path)
+            f, skipped = _delete_tree_no_follow(path, root_real, recurse)
             freed += f
             if skipped:
                 failed += 1
@@ -344,14 +367,14 @@ class KaizenApp:
 
     # ---------- limpeza ----------
 
-    def _clean_folder(self, folder):
+    def _clean_folder(self, folder, recurse=True):
         """Apaga o conteúdo de `folder` sem nunca seguir links ou junções.
 
         Reparse points (links simbólicos, junções) são pulados e contados como
         ignorados: o processo roda elevado e pastas como C:\\Windows\\Temp são
         graváveis por outros usuários.
         """
-        return clean_folder_safely(folder)
+        return clean_folder_safely(folder, recurse)
 
     def clean_temp(self):
         self.log("Limpando temporários do usuário (%TEMP%)...")
@@ -359,7 +382,7 @@ class KaizenApp:
         self.log(f"  → {r1} itens removidos, {f1} ignorados, {human_size(s1)} liberados.")
 
         self.log("Limpando temporários do sistema (C:\\Windows\\Temp)...")
-        r2, f2, s2 = self._clean_folder(r"C:\Windows\Temp")
+        r2, f2, s2 = self._clean_folder(r"C:\Windows\Temp", recurse=False)  # gravável por todos: só arquivos do 1º nível
         self.log(f"  → {r2} itens removidos, {f2} ignorados, {human_size(s2)} liberados.")
 
         total = s1 + s2

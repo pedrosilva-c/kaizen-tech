@@ -87,6 +87,15 @@ class SafeCleanupTests(unittest.TestCase):
             self.assertTrue(kt.is_reparse_point(str(juncao)))
             os.rmdir(juncao)  # remove só a junção, não o destino
 
+    def test_no_recurse_only_removes_top_level_files(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            Path(tmp, "a.tmp").write_bytes(b"x" * 4)
+            Path(tmp, "de-outro-usuario").mkdir()
+            Path(tmp, "de-outro-usuario", "b.tmp").write_bytes(b"y")
+            removed, failed, freed = kt.clean_folder_safely(tmp, recurse=False)
+            self.assertEqual((removed, failed, freed), (1, 1, 4))
+            self.assertTrue(Path(tmp, "de-outro-usuario", "b.tmp").exists())
+
     def test_missing_folder_is_noop(self):
         self.assertEqual(kt.clean_folder_safely(os.path.join(tempfile.gettempdir(), "kaizen-nao-existe-456")), (0, 0, 0))
 

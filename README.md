@@ -10,7 +10,7 @@ Ferramenta de manutenção rápida para técnicos de suporte. Reúne as verifica
 - As limpezas **apagam arquivos** em `%TEMP%`, `C:\Windows\Temp`, cache de navegadores e lixeira. O que foi apagado não volta.
 - Use **somente em computadores sob sua responsabilidade** ou com autorização do dono, e crie um ponto de restauração antes (há um botão para isso).
 - As ações destrutivas pedem confirmação, mas não há "desfazer". "Restaurar efeitos visuais padrão" reverte apenas os ajustes de efeitos visuais.
-- **Proteções do processo elevado:** a limpeza nunca segue links simbólicos ou junções (são pulados e contados como ignorados), e o Explorer é reiniciado **sem** herdar o token de administrador (o Winlogon o reinicia como shell do usuário; o *fallback* usa `runas /trustlevel:0x20000`).
+- **Proteções do processo elevado:** a limpeza nunca segue links simbólicos ou junções (são pulados e contados como ignorados), confere o caminho real de cada item contra a pasta-raiz imediatamente antes de apagá-lo e, em `C:\Windows\Temp` (gravável por qualquer usuário), apaga só os arquivos do primeiro nível, sem entrar em subpastas; e o Explorer é reiniciado **sem** herdar o token de administrador (o Winlogon o reinicia como shell do usuário; o *fallback* usa `runas /trustlevel:0x20000`).
 - Revise o código antes de executar. Ele está todo em um único arquivo: [`kaizen_tech.py`](kaizen_tech.py).
 
 ## Problema
@@ -23,7 +23,7 @@ Em atendimentos de manutenção, as mesmas verificações são feitas à mão a 
 |---|---|---|
 | Informações do sistema | SO, processador, núcleos, RAM livre/total e disco C: | — |
 | Criar ponto de restauração | `Checkpoint-Computer` via PowerShell (o Windows limita a 1 a cada 24 h) | — |
-| Limpar temporários | `%TEMP%` do usuário e `C:\Windows\Temp`; contabiliza o espaço liberado | Sim |
+| Limpar temporários | `%TEMP%` do usuário e arquivos do primeiro nível de `C:\Windows\Temp`; contabiliza o espaço liberado | Sim |
 | Limpar cache de navegadores | Cache e Code Cache de Chrome, Edge e Firefox | Sim |
 | Esvaziar lixeira | API do shell do Windows | Sim |
 | Verificar saúde do disco | Consulta **somente leitura** | — |
@@ -74,11 +74,12 @@ py -m venv .venv
 python -m unittest discover -s tests -v
 ```
 
-**13 testes OK (11/11/2026).** Eles cobrem as funções auxiliares, as consultas de leitura ao sistema e a limpeza segura, incluindo um teste que cria uma **junção apontando para fora da pasta** e confirma que o destino não é apagado. **Nenhum teste executa as ações de manutenção sobre o sistema real.** As ações foram validadas manualmente em máquina própria.
+**14 testes OK (11/11/2026).** Eles cobrem as funções auxiliares, as consultas de leitura ao sistema e a limpeza segura, incluindo um teste que cria uma **junção apontando para fora da pasta** e confirma que o destino não é apagado. **Nenhum teste executa as ações de manutenção sobre o sistema real.** As ações foram validadas manualmente em máquina própria.
 
 ## Limitações
 
-- Não há testes automatizados para as ações que alteram o sistema (exigiriam uma VM descartável).
+- Não há testes automatizados para as ações que alteram o sistema (exigiriam uma VM descartável). O reinício do Explorer sem elevação foi implementado após a revisão de segurança e ainda precisa de validação manual.
+- Risco residual conhecido: a exclusão ainda é feita por caminho, não por *handle*. A janela de corrida é mínima e não atravessa links, mas não é nula.
 - A interface trava durante ações longas: tudo roda na thread do Tkinter.
 - No Chrome e no Edge, a limpeza de cache cobre apenas o perfil `Default` (no Firefox, todos os perfis).
 - Executável não assinado: o SmartScreen pode alertar.
