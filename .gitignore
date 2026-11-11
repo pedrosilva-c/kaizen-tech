@@ -1,0 +1,13 @@
+# Builds do PyInstaller
+build/
+dist/
+*.exe
+# Fontes baixadas localmente (ver README)
+fonts/
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+# Relatórios gerados em testes manuais
+relatorio_kaizen_tech_*
