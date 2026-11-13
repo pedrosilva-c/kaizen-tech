@@ -6,7 +6,7 @@
 
 Ferramenta de manutenção rápida para técnicos de suporte. Reúne as verificações e limpezas mais comuns de um atendimento num só painel e gera, ao final, um **relatório do atendimento em PDF** para o cliente.
 
-**[Portfólio](https://pedrosilva-c.github.io/portfolio/)** · **[Perfil no GitHub](https://github.com/pedrosilva-c)**
+**[Portfólio](https://pedro-osaka.github.io/portfolio/)** · **[Perfil no GitHub](https://github.com/Pedro-Osaka)**
 
 ## Aviso de segurança
 
@@ -68,7 +68,7 @@ Um único módulo Python com interface **Tkinter**:
 Requisitos: Windows 10/11 e Python 3.11+.
 
 ```powershell
-git clone https://github.com/pedrosilva-c/kaizen-tech.git
+git clone https://github.com/Pedro-Osaka/kaizen-tech.git
 cd kaizen-tech
 py -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
@@ -106,4 +106,4 @@ python -m unittest discover -s tests -v
 
 ## Autor
 
-**Pedro Henrique da Silva Pereira** · [Portfólio](https://pedrosilva-c.github.io/portfolio/) · [LinkedIn](https://www.linkedin.com/in/pedrosilva-sistemas/)
+**Pedro Henrique da Silva Pereira** · [Portfólio](https://pedro-osaka.github.io/portfolio/) · [LinkedIn](https://www.linkedin.com/in/pedrosilva-sistemas/)
