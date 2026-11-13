@@ -1,10 +1,17 @@
+<img src="docs/assets/cover.png" alt="Kaizen Tech — utilitário de manutenção Windows para técnicos de suporte" width="100%">
+
 # Kaizen Tech
 
 > **Status: funcional.** Uso pessoal em atendimentos de manutenção. Sem instalador nem assinatura digital.
 
 Ferramenta de manutenção rápida para técnicos de suporte. Reúne as verificações e limpezas mais comuns de um atendimento num só painel e gera, ao final, um **relatório do atendimento em PDF** para o cliente.
 
-## ⚠️ Aviso de segurança — leia antes de usar
+**[Portfólio](https://pedrosilva-c.github.io/portfolio/)** · **[Perfil no GitHub](https://github.com/pedrosilva-c)**
+
+## Aviso de segurança
+
+> [!WARNING]
+> O programa roda como administrador, altera configurações do Windows e apaga arquivos. Leia os pontos abaixo antes de usar.
 
 - O programa **pede privilégios de administrador** ao iniciar (UAC) e **altera configurações do Windows**: registro (efeitos visuais, sugestões do Menu Iniciar, Game Bar), plano de energia e reinício do Explorer.
 - As limpezas **apagam arquivos** em `%TEMP%`, `C:\Windows\Temp`, cache de navegadores e lixeira. O que foi apagado não volta.
@@ -35,6 +42,16 @@ Em atendimentos de manutenção, as mesmas verificações são feitas à mão a 
 | Backup rápido | Copia Desktop, Documentos e Imagens para uma pasta escolhida | — |
 | Programas de inicialização | `Win32_StartupCommand` via PowerShell/CIM | — |
 | Relatório do atendimento | PDF na Área de Trabalho, com nome do cliente, espaço liberado e log com horário de cada ação. Cai para `.txt` se o `fpdf2` não estiver disponível | — |
+
+## Tecnologias
+
+Python · Tkinter · ctypes · winreg · subprocess · PowerShell/CIM · fpdf2 · PyInstaller
+
+## Demonstração
+
+Janela principal, capturada em 13/11/2026 a partir desta versão do repositório, **sem privilégios de administrador e sem executar nenhuma ação** (por isso o aviso amarelo no topo). O painel claro mostra as informações reais da máquina usada na captura.
+
+<img src="docs/assets/screenshot-janela.png" alt="Janela do Kaizen Tech com o campo Cliente, o painel de informações do sistema, os botões de manutenção e o log" width="560">
 
 ## Arquitetura
 
@@ -76,7 +93,9 @@ python -m unittest discover -s tests -v
 
 **14 testes OK (11/11/2026).** Eles cobrem as funções auxiliares, as consultas de leitura ao sistema e a limpeza segura, incluindo um teste que cria uma **junção apontando para fora da pasta** e confirma que o destino não é apagado. **Nenhum teste executa as ações de manutenção sobre o sistema real.** As ações foram validadas manualmente em máquina própria.
 
-## Limitações
+## Limitações e status
+
+**Status atual: funcional.** Uso pessoal em atendimentos de manutenção.
 
 - Não há testes automatizados para as ações que alteram o sistema (exigiriam uma VM descartável). O reinício do Explorer sem elevação foi implementado após a revisão de segurança e ainda precisa de validação manual.
 - Risco residual conhecido: a exclusão ainda é feita por caminho, não por *handle*. A janela de corrida é mínima e não atravessa links, mas não é nula.
@@ -84,10 +103,6 @@ python -m unittest discover -s tests -v
 - No Chrome e no Edge, a limpeza de cache cobre apenas o perfil `Default` (no Firefox, todos os perfis).
 - Executável não assinado: o SmartScreen pode alertar.
 - Só funciona no Windows.
-
-## Tecnologias
-
-Python · Tkinter · ctypes · winreg · subprocess · PowerShell/CIM · fpdf2 · PyInstaller
 
 ## Autor
 
